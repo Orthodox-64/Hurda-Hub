@@ -1,7 +1,9 @@
 import React from 'react'
 import { useCart } from '../contexts/CartContext'
 import { useAuth } from '../contexts/AuthContext'
-import { apiClient } from '../lib/api'
+import { db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+// Remove: import { apiClient } from '../lib/api'
 
 const Cart = ({ onClose }) => {
   const { cartItems, updateQuantity, removeFromCart, getTotalPrice, clearCart } = useCart()
@@ -15,6 +17,7 @@ const Cart = ({ onClose }) => {
 
     try {
       const orderData = {
+        userId: user.uid,
         items: cartItems.map(item => ({
           productId: item.id,
           name: item.name,
@@ -22,17 +25,16 @@ const Cart = ({ onClose }) => {
           quantity: item.quantity,
           unit: item.unit
         })),
-        totalAmount: getTotalPrice()
-      }
-
-      await apiClient.createOrder(orderData)
-
-      alert('Order placed successfully!')
-      clearCart()
-      onClose()
+        totalAmount: getTotalPrice(),
+        createdAt: serverTimestamp()
+      };
+      await addDoc(collection(db, 'orders'), orderData);
+      alert('Order placed successfully!');
+      clearCart();
+      onClose();
     } catch (error) {
-      console.error('Error placing order:', error)
-      alert(error.message || 'Error placing order. Please try again.')
+      console.error('Error placing order:', error);
+      alert(error.message || 'Error placing order. Please try again.');
     }
   }
 

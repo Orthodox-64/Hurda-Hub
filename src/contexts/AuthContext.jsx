@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { apiClient } from '../lib/api'
+import { initializeApp } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from "firebase/auth";
+import app from '../lib/firebase';
+
+const auth = getAuth(app);
 
 const AuthContext = createContext()
 
@@ -16,61 +20,42 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user is logged in on app start
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token')
-      if (token) {
-        try {
-          const response = await apiClient.getCurrentUser()
-          setUser(response.user)
-        } catch (error) {
-          console.error('Auth check failed:', error)
-          localStorage.removeItem('token')
-        }
-      }
-      setLoading(false)
-    }
-
-    checkAuth()
-  }, [])
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const signUp = async (email, password, userData) => {
     try {
-      const response = await apiClient.register({
-        fullName: userData.full_name,
-        email,
-        password,
-        phone: userData.phone
-      })
-      setUser(response.user)
-      return { data: response, error: null }
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      // Optionally, save userData (full_name, phone) to Firestore here
+      return { data: userCredential, error: null };
     } catch (error) {
-      return { data: null, error }
+      return { data: null, error };
     }
-  }
+  };
 
   const signIn = async (email, password) => {
     try {
-      const response = await apiClient.login({
-        email,
-        password
-      })
-      setUser(response.user)
-      return { data: response, error: null }
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return { data: userCredential, error: null };
     } catch (error) {
-      return { data: null, error }
+      return { data: null, error };
     }
-  }
+  };
 
   const signOut = async () => {
     try {
-      apiClient.logout()
-      setUser(null)
-      return { error: null }
+      await firebaseSignOut(auth);
+      setUser(null);
+      return { error: null };
     } catch (error) {
-      return { error }
+      return { error };
     }
-  }
+  };
 
   const value = {
     user,
@@ -78,11 +63,11 @@ export const AuthProvider = ({ children }) => {
     signIn,
     signOut,
     loading
-  }
+  };
 
   return (
     <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
-  )
-}
+  );
+};
